@@ -1,0 +1,26 @@
+# bv (beads viewer) local config and caches
+.bv/
+
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# build artifacts
+/build
+*.tsbuildinfo
+
+# environment
+.env*
+!.env.example
+
+# logs
+pnpm-debug.log*
+
+# local QA / agent artifacts
+/coverage/
+/test-results/
+/.ntm/
+/.beads/.br_history/

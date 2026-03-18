@@ -1,0 +1,45 @@
+{
+  "name": "worldcup-animation",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.7.1",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "export TMP_BASE=\"${VITEST_TMPDIR:-$HOME/.cache/vitest-tmp}\" && mkdir -p \"$TMP_BASE\" && export TMPDIR=\"$TMP_BASE\" && export TMP=\"$TMP_BASE\" && export TEMP=\"$TMP_BASE\" && node ./node_modules/vitest/vitest.mjs run --pool=forks --maxWorkers=1",
+    "test:watch": "export TMP_BASE=\"${VITEST_TMPDIR:-$HOME/.cache/vitest-tmp}\" && mkdir -p \"$TMP_BASE\" && export TMPDIR=\"$TMP_BASE\" && export TMP=\"$TMP_BASE\" && export TEMP=\"$TMP_BASE\" && node ./node_modules/vitest/vitest.mjs --pool=forks --maxWorkers=1",
+    "test:coverage": "export TMP_BASE=\"${VITEST_TMPDIR:-$HOME/.cache/vitest-tmp}\" && mkdir -p \"$TMP_BASE\" && export TMPDIR=\"$TMP_BASE\" && export TMP=\"$TMP_BASE\" && export TEMP=\"$TMP_BASE\" && node ./node_modules/vitest/vitest.mjs run --coverage --pool=forks --maxWorkers=1",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "dependencies": {
+    "next": "15.5.13",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
+    "@eslint/eslintrc": "3.3.5",
+    "@playwright/test": "^1.58.2",
+    "@tailwindcss/postcss": "4.2.2",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "25.5.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitest/coverage-istanbul": "^4.1.0",
+    "eslint": "9.39.4",
+    "eslint-config-next": "15.5.13",
+    "jsdom": "^29.0.0",
+    "postcss": "8.5.8",
+    "tailwindcss": "4.2.2",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

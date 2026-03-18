@@ -1,0 +1,215 @@
+@import "tailwindcss";
+
+:root {
+  --hero-color-navy: #1b2a4a;
+  --hero-color-gold: #c9a84c;
+  --hero-color-gold-light: #e8d48b;
+  --hero-color-true-black: #000000;
+}
+
+@theme inline {
+  --color-navy: var(--hero-color-navy);
+  --color-gold: var(--hero-color-gold);
+  --color-gold-light: var(--hero-color-gold-light);
+  --color-true-black: var(--hero-color-true-black);
+}
+
+html {
+  background-color: var(--hero-color-true-black);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: linear-gradient(180deg, var(--hero-color-navy) 0%, var(--hero-color-true-black) 100%);
+  color: #ffffff;
+}
+
+.hero-root > .hero-static[data-branch="static"] {
+  display: block;
+}
+
+.hero-root > .hero-shell[data-branch="enhanced"] {
+  display: none;
+  position: relative;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-js="true"] .hero-root > .hero-static[data-branch="static"] {
+    display: none;
+  }
+
+  html[data-js="true"] .hero-root > .hero-shell[data-branch="enhanced"] {
+    display: block;
+  }
+}
+
+.hero-scroll {
+  position: relative;
+  height: var(--hero-scroll-height, 450dvh);
+}
+
+@media (pointer: coarse) {
+  .hero-scroll {
+    height: var(--hero-scroll-height, 350dvh);
+  }
+}
+
+.hero-stage {
+  position: sticky;
+  top: 0;
+  height: var(--hero-vh, 100dvh);
+  overflow: clip;
+  isolation: isolate;
+}
+
+@supports not (overflow: clip) {
+  .hero-stage {
+    overflow: hidden;
+  }
+}
+
+.hero-stage > * {
+  position: absolute;
+  inset: 0;
+}
+
+@keyframes heartbeat {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.035);
+  }
+}
+
+@keyframes shoot {
+  0% {
+    opacity: 0;
+    transform: translate3d(-16%, -28%, 0) scale(0.92);
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(136%, 72%, 0) scale(1.04);
+  }
+}
+
+@keyframes grain-shift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  25% {
+    transform: translate3d(-1.5%, 1%, 0);
+  }
+
+  50% {
+    transform: translate3d(1%, -1%, 0);
+  }
+
+  75% {
+    transform: translate3d(-0.75%, -1.25%, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes flare-sweep {
+  0% {
+    opacity: 0;
+    transform: translate3d(-140%, 0, 0) skewX(-14deg);
+  }
+
+  20% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(140%, 0, 0) skewX(-14deg);
+  }
+}
+
+@keyframes cta-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(201, 168, 76, 0.32);
+  }
+
+  45% {
+    transform: scale(1.035);
+    box-shadow: 0 0 0 16px rgba(201, 168, 76, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(201, 168, 76, 0);
+  }
+}
+
+@keyframes spotlight-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes anticipation-drift {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: translate3d(-8%, 6%, 0);
+  }
+
+  50% {
+    opacity: 0.82;
+    transform: translate3d(10%, -8%, 0);
+  }
+}
+
+.hero-portal-heartbeat {
+  animation: heartbeat 0.83s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.hero-shoot {
+  animation: shoot 1.5s linear 1;
+}
+
+.hero-grain-shift {
+  animation: grain-shift 0.3s steps(4) infinite;
+}
+
+.hero-flare-sweep {
+  animation: flare-sweep 1.5s ease-out 1;
+}
+
+.hero-cta-pulse {
+  animation: cta-pulse 0.6s ease-out 1;
+}
+
+.hero-spotlight-breathe {
+  animation: spotlight-breathe 3s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.hero-anticipation-drift {
+  animation: anticipation-drift 4s ease-in-out infinite;
+}
