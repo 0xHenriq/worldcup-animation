@@ -29,6 +29,7 @@ const HERO_PORTAL_MAX_SCALE_CSS_VAR = "--hero-portal-max-scale";
 const SHOOTING_STAR_CANCEL_PROGRESS = 0.06;
 const TROPHY_FLARE_TRIGGER_OPACITY = 0.8;
 const CTA_INTERACTIVE_OPACITY_THRESHOLD = 0.8;
+export const HERO_RUNTIME_FRAME_EVENT = "hero:runtimeframe";
 
 export type HeroRuntimeDirection = "forward" | "backward" | "none";
 
@@ -321,6 +322,13 @@ export function useHeroRuntime({
       heroRoot.style.setProperty(HERO_SCROLL_PROGRESS_CSS_VAR, `${nextScrollProgress}`);
       heroRoot.style.setProperty(HERO_SCROLL_Y_CSS_VAR, `${latestScrollYRef.current}px`);
       heroRoot.dataset.heroScrollProgress = nextScrollProgress.toFixed(4);
+      heroRoot.dispatchEvent(
+        new CustomEvent(HERO_RUNTIME_FRAME_EVENT, {
+          detail: {
+            scrollProgress: nextScrollProgress,
+          },
+        }),
+      );
 
       syncOneShotRefs(nextScrollProgress, resetOneShotRefsRef.current);
       resetOneShotRefsRef.current = false;

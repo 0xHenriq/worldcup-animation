@@ -171,17 +171,21 @@ function getFrameIndicesByDistance(targetFrameIndex: number, frameCount: number)
 function shouldStartThumbPrefetch(
   clip: HeroFrameClip,
   scrollProgress: number,
-  enabled: boolean,
 ): boolean {
-  if (!enabled) {
-    return false;
-  }
-
   if (clip === "celebration") {
-    return scrollProgress > THUMB_PREFETCH_START.celebration || enabled;
+    return scrollProgress > THUMB_PREFETCH_START.celebration;
   }
 
   return scrollProgress > THUMB_PREFETCH_START.sparkle;
+}
+
+function hasMeasuredViewport(viewportWidth: number, viewportHeight: number): boolean {
+  return (
+    Number.isFinite(viewportWidth) &&
+    viewportWidth > 0 &&
+    Number.isFinite(viewportHeight) &&
+    viewportHeight > 0
+  );
 }
 
 function releaseDecodedFrame(frame: DecodedFrame): void {
@@ -276,6 +280,7 @@ export function useFrameLoader({
   viewportWidth,
 }: UseFrameLoaderOptions): UseFrameLoaderResult {
   const frameCount = FRAME_MANIFEST[clip].count;
+  const loaderEnabled = enabled && hasMeasuredViewport(viewportWidth, viewportHeight);
   const desiredTier = useMemo(
     () => getDesiredTier(viewportWidth, viewportHeight),
     [viewportHeight, viewportWidth],
@@ -296,11 +301,13 @@ export function useFrameLoader({
   const isMountedRef = useRef(true);
   const previousClipRef = useRef<HeroFrameClip>(clip);
   const previousDesiredTierRef = useRef<DesiredFrameTier>(desiredTier);
-  const previousEnabledRef = useRef(enabled);
+  const previousEnabledRef = useRef(loaderEnabled);
+  const previousTargetFrameIndexRef = useRef(clampedTargetFrameIndex);
+  const previousVisibilityRef = useRef(isVisible);
   const revisionCounterRef = useRef(0);
   const snapshotInputsRef = useRef<SnapshotInputs>({
     desiredTier,
-    enabled,
+    enabled: loaderEnabled,
     frameCount,
     isVisible,
     scrollProgress,
@@ -312,7 +319,7 @@ export function useFrameLoader({
     createSnapshot(
       {
         desiredTier,
-        enabled,
+        enabled: loaderEnabled,
         frameCount,
         isVisible,
         scrollProgress,
@@ -326,7 +333,7 @@ export function useFrameLoader({
 
   snapshotInputsRef.current = {
     desiredTier,
-    enabled,
+    enabled: loaderEnabled,
     frameCount,
     isVisible,
     scrollProgress,
@@ -406,7 +413,12 @@ export function useFrameLoader({
   );
 
   const decodeFrameAtTier = useCallback(
-    async (frameIndex: number, tier: FrameTier, generation: number): Promise<void> => {
+    async (
+      frameIndex: number,
+      tier: FrameTier,
+      generation: number,
+      allowHiddenFrame = false,
+    ): Promise<void> => {
       const key = `${tier}:${frameIndex}`;
       const currentRecord = decodedFramesRef.current.get(frameIndex);
 
@@ -434,8 +446,7 @@ export function useFrameLoader({
           generationRef.current !== generation ||
           !isMountedRef.current ||
           !snapshotInputsRef.current.enabled ||
-          !snapshotInputsRef.current.isVisible ||
-          !currentWindowRef.current.has(frameIndex)
+          (!snapshotInputsRef.current.isVisible && !allowHiddenFrame)
         ) {
           releaseDecodedFrame(decodedFrame);
           return;
@@ -518,11 +529,15 @@ export function useFrameLoader({
   );
 
   const syncWindowFrame = useCallback(
-    async (frameIndex: number, generation: number): Promise<void> => {
+    async (
+      frameIndex: number,
+      generation: number,
+      allowHiddenFrame = false,
+    ): Promise<void> => {
       if (
         generationRef.current !== generation ||
         !snapshotInputsRef.current.enabled ||
-        !snapshotInputsRef.current.isVisible ||
+        (!snapshotInputsRef.current.isVisible && !allowHiddenFrame) ||
         !currentWindowRef.current.has(frameIndex)
       ) {
         return;
@@ -535,11 +550,11 @@ export function useFrameLoader({
       }
 
       if (availabilityRef.current[desiredTier].has(frameIndex)) {
-        await decodeFrameAtTier(frameIndex, desiredTier, generation);
+        await decodeFrameAtTier(frameIndex, desiredTier, generation, allowHiddenFrame);
         return;
       }
 
-      await decodeFrameAtTier(frameIndex, "thumb", generation);
+      await decodeFrameAtTier(frameIndex, "thumb", generation, allowHiddenFrame);
 
       if (generationRef.current !== generation || !currentWindowRef.current.has(frameIndex)) {
         return;
@@ -657,21 +672,21 @@ export function useFrameLoader({
   }, [abortInFlightControllers, cancelScheduledWork, clearDecodedFrames, desiredTier]);
 
   useEffect(() => {
-    if (previousEnabledRef.current === enabled) {
+    if (previousEnabledRef.current === loaderEnabled) {
       return;
     }
 
-    previousEnabledRef.current = enabled;
+    previousEnabledRef.current = loaderEnabled;
     cancelScheduledWork();
     abortInFlightControllers(decodeControllersRef.current);
     abortInFlightControllers(prefetchControllersRef.current);
     generationRef.current = makeGenerationToken();
     queueTokenRef.current += 1;
 
-    if (!enabled) {
+    if (!loaderEnabled) {
       clearDecodedFrames();
     }
-  }, [abortInFlightControllers, cancelScheduledWork, clearDecodedFrames, enabled]);
+  }, [abortInFlightControllers, cancelScheduledWork, clearDecodedFrames, loaderEnabled]);
 
   useEffect(() => {
     const generation = generationRef.current;
@@ -680,20 +695,46 @@ export function useFrameLoader({
     const windowFrameIndices = new Set<number>(
       orderedFrameIndices.slice(0, getDecodeWindowSize(desiredTier)),
     );
+    const visibleFallbackFrame =
+      loaderEnabled && isVisible
+        ? resolveNearestDecodedFrame(
+            clampedTargetFrameIndex,
+            frameCount,
+            decodedFramesRef.current,
+          )
+        : null;
+    const retainedVisibleFrameIndices = new Set<number>(windowFrameIndices);
+    const hiddenFallbackFrameIndices = new Set<number>([clampedTargetFrameIndex]);
     const queuedJobs: LoaderJob[] = [];
-    const shouldWarmThumb = shouldStartThumbPrefetch(clip, scrollProgress, enabled);
+    const shouldWarmThumb = shouldStartThumbPrefetch(clip, scrollProgress);
+    const shouldAbortStalePrefetches =
+      previousTargetFrameIndexRef.current !== clampedTargetFrameIndex ||
+      previousVisibilityRef.current !== isVisible;
+
+    if (visibleFallbackFrame) {
+      retainedVisibleFrameIndices.add(visibleFallbackFrame.frameIndex);
+    }
 
     cancelScheduledWork();
+
+    if (shouldAbortStalePrefetches) {
+      abortInFlightControllers(prefetchControllersRef.current);
+    }
+
+    previousTargetFrameIndexRef.current = clampedTargetFrameIndex;
+    previousVisibilityRef.current = isVisible;
     queueTokenRef.current = queueToken;
     currentWindowRef.current = windowFrameIndices;
 
-    if (enabled && isVisible) {
-      clearDecodedFrames(windowFrameIndices);
+    if (loaderEnabled && isVisible) {
+      clearDecodedFrames(retainedVisibleFrameIndices);
+    } else if (loaderEnabled) {
+      clearDecodedFrames(hiddenFallbackFrameIndices);
     } else {
       clearDecodedFrames();
     }
 
-    if (!enabled || frameCount <= 0) {
+    if (!loaderEnabled || frameCount <= 0) {
       publishSnapshot();
       return;
     }
@@ -713,6 +754,12 @@ export function useFrameLoader({
           frameIndex,
           kind: "sync-window",
         });
+      }
+    } else if (clip === "sparkle" && shouldWarmThumb) {
+      const [currentFrameIndex] = orderedFrameIndices;
+
+      if (currentFrameIndex !== undefined) {
+        void syncWindowFrame(currentFrameIndex, generation, true);
       }
     }
 
@@ -755,14 +802,15 @@ export function useFrameLoader({
     publishSnapshot();
     runQueuedJobs(queuedJobs, generation, queueToken);
   }, [
+    abortInFlightControllers,
     cancelScheduledWork,
     clearDecodedFrames,
     clip,
     clampedTargetFrameIndex,
     desiredTier,
-    enabled,
     frameCount,
     isVisible,
+    loaderEnabled,
     publishSnapshot,
     runQueuedJobs,
     scrollProgress,

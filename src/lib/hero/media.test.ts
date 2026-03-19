@@ -2,6 +2,7 @@ import { afterEach, describe, it, vi } from "vitest";
 
 import {
   computeCanvasScale,
+  decodeFrame,
   getActiveTierLongEdge,
   getDesiredTier,
   warmFrameSource,
@@ -46,6 +47,7 @@ function expectCanvasScale(
 
 const originalImage = globalThis.Image;
 const originalFetch = globalThis.fetch;
+const originalCreateImageBitmap = globalThis.createImageBitmap;
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -60,6 +62,12 @@ afterEach(() => {
     Reflect.deleteProperty(globalThis, "fetch");
   } else {
     globalThis.fetch = originalFetch;
+  }
+
+  if (originalCreateImageBitmap === undefined) {
+    Reflect.deleteProperty(globalThis, "createImageBitmap");
+  } else {
+    globalThis.createImageBitmap = originalCreateImageBitmap;
   }
 });
 
@@ -194,5 +202,43 @@ describe("media source warming", () => {
           throw error;
         }
       });
+  });
+
+  it("decodes frame fetches through the warmed HTTP cache path", async () => {
+    const blob = new Blob(["frame"]);
+    const fetchSpy = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args;
+
+      return new Response(blob, {
+        headers: {
+          "content-type": "image/webp",
+        },
+        status: 200,
+      });
+    });
+    const createImageBitmapSpy = vi.fn(async () => {
+      return {
+        close() {},
+        height: 1080,
+        width: 1920,
+      } as ImageBitmap;
+    });
+
+    globalThis.fetch = fetchSpy as typeof fetch;
+    globalThis.createImageBitmap = createImageBitmapSpy as typeof createImageBitmap;
+
+    await decodeFrame("/hero/frames/sparkle/thumb/0001.webp");
+
+    const fetchOptions = fetchSpy.mock.calls[0]?.[1];
+
+    if (!fetchOptions) {
+      throw new Error("decodeFrame should call fetch with request options.");
+    }
+
+    if (fetchOptions.cache !== "force-cache") {
+      throw new Error(
+        `decodeFrame should fetch through the warmed HTTP cache, got cache=${String(fetchOptions.cache)}`,
+      );
+    }
   });
 });

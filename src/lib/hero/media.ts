@@ -220,7 +220,10 @@ export async function decodeFrame(url: string, abortSignal?: AbortSignal): Promi
   throwIfAborted(abortSignal);
 
   if (typeof fetch === "function") {
-    const response = await fetch(url, { signal: abortSignal });
+    const response = await fetch(url, {
+      cache: "force-cache",
+      signal: abortSignal,
+    });
 
     if (!response.ok) {
       throw new Error(`Failed to fetch frame: ${response.status} ${response.statusText}`);

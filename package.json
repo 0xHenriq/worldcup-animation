@@ -11,11 +11,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "export TMP_BASE=\"${VITEST_TMPDIR:-$HOME/.cache/vitest-tmp}\" && mkdir -p \"$TMP_BASE\" && export TMPDIR=\"$TMP_BASE\" && export TMP=\"$TMP_BASE\" && export TEMP=\"$TMP_BASE\" && node ./node_modules/vitest/vitest.mjs run --pool=forks --maxWorkers=1",
     "test:watch": "export TMP_BASE=\"${VITEST_TMPDIR:-$HOME/.cache/vitest-tmp}\" && mkdir -p \"$TMP_BASE\" && export TMPDIR=\"$TMP_BASE\" && export TMP=\"$TMP_BASE\" && export TEMP=\"$TMP_BASE\" && node ./node_modules/vitest/vitest.mjs --pool=forks --maxWorkers=1",
     "test:coverage": "export TMP_BASE=\"${VITEST_TMPDIR:-$HOME/.cache/vitest-tmp}\" && mkdir -p \"$TMP_BASE\" && export TMPDIR=\"$TMP_BASE\" && export TMP=\"$TMP_BASE\" && export TEMP=\"$TMP_BASE\" && node ./node_modules/vitest/vitest.mjs run --coverage --pool=forks --maxWorkers=1",
     "test:e2e": "playwright test",
+    "test:e2e:perf": "export TMP_BASE=\"${PLAYWRIGHT_TMPDIR:-$HOME/.cache/playwright-tmp}\" && mkdir -p \"$TMP_BASE\" && export TMPDIR=\"$TMP_BASE\" && export TMP=\"$TMP_BASE\" && export TEMP=\"$TMP_BASE\" && sh -c 'PORT=\"${PLAYWRIGHT_PERF_PORT:-3111}\"; COREPACK_HOME=\"$HOME/.cache/corepack\" /usr/bin/node /usr/bin/corepack pnpm build && (COREPACK_HOME=\"$HOME/.cache/corepack\" /usr/bin/node /usr/bin/corepack pnpm exec next start -p \"$PORT\" & pid=$!; trap \"kill $pid\" EXIT; until curl -sf \"http://127.0.0.1:$PORT/\" >/dev/null; do sleep 1; done; PLAYWRIGHT_RUN_PRODUCTION_PERF=1 PLAYWRIGHT_BASE_URL=\"http://127.0.0.1:$PORT\" PLAYWRIGHT_PORT=\"$PORT\" /usr/bin/node /usr/bin/corepack pnpm exec playwright test test/e2e/performance.spec.ts --project=chromium --workers=1)'",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed"
   },

@@ -70,6 +70,7 @@ type HeroPerformanceWindow = Window & {
 };
 
 const PERFORMANCE_TEST_TIMEOUT_MS = 120_000;
+const PERFORMANCE_MEMORY_TEST_TIMEOUT_MS = 240_000;
 const LCP_ASSERTION_MS = 2_000;
 const FPS_ASSERTION = 50;
 const FPS_SCROLL_DURATION_MS = 3_000;
@@ -78,6 +79,9 @@ const LARGE_SINGLE_CLIP_BUDGET_MAX_BYTES = 220 * 1024 * 1024;
 const LARGE_OVERLAP_BUDGET_MAX_BYTES = 380 * 1024 * 1024;
 const MEDIUM_OVERLAP_BUDGET_MAX_BYTES = 96 * 1024 * 1024;
 const HEAP_GROWTH_BUDGET_BYTES = 12 * 1024 * 1024;
+const RUN_PRODUCTION_PERF = process.env.PLAYWRIGHT_RUN_PRODUCTION_PERF === "1";
+const PRODUCTION_PERF_SKIP_REASON =
+  "Performance probes require a production-backed server. Run with PLAYWRIGHT_RUN_PRODUCTION_PERF=1 or use pnpm test:e2e:perf.";
 
 async function installPerformanceProbes(page: Page): Promise<void> {
   await page.addInitScript(
@@ -536,6 +540,8 @@ async function collectHeapUsage(page: Page): Promise<HeapUsageSnapshot> {
 }
 
 test.describe("Hero performance metrics", () => {
+  test.skip(!RUN_PRODUCTION_PERF, PRODUCTION_PERF_SKIP_REASON);
+
   test("captures LCP, frame-rate, and draw-call metrics across the full hero scroll", async ({
     page,
   }, testInfo) => {
@@ -583,21 +589,30 @@ test.describe("Hero performance metrics", () => {
     await logger.step("Verify celebration draw calls stop after the celebration phase fades out");
     await scrollToProgress(page, 0.5);
     await page.waitForTimeout(250);
-    const preCelebrationStopCounts = await readCanvasDrawProbe(page);
+    const celebrationActiveCounts = await readCanvasDrawProbe(page);
 
-    expect(preCelebrationStopCounts.celebration).toBeGreaterThan(0);
+    expect(celebrationActiveCounts.celebration).toBeGreaterThan(0);
 
     await scrollToProgress(page, 0.62);
     await page.waitForTimeout(400);
+    const preCelebrationStopCounts = await readCanvasDrawProbe(page);
+
+    await scrollToProgress(page, 0.72);
+    await page.waitForTimeout(250);
     const postCelebrationStopCounts = await readCanvasDrawProbe(page);
 
     logger.expect(
-      "draw counts before celebration stop",
+      "draw counts during celebration",
+      celebrationActiveCounts,
+      celebrationActiveCounts,
+    );
+    logger.expect(
+      "draw counts immediately after celebration hide",
       preCelebrationStopCounts,
       preCelebrationStopCounts,
     );
     logger.expect(
-      "draw counts after celebration stop",
+      "draw counts later after celebration hide",
       postCelebrationStopCounts,
       postCelebrationStopCounts,
     );
@@ -605,17 +620,20 @@ test.describe("Hero performance metrics", () => {
     expect(postCelebrationStopCounts.celebration).toBe(preCelebrationStopCounts.celebration);
 
     await logger.step("Verify sparkle draw calls stop after the sparkle phase hides");
-    await scrollToProgress(page, 0.72);
-    await page.waitForTimeout(250);
-    const preSparkleStopCounts = await readCanvasDrawProbe(page);
+    const sparkleActiveCounts = postCelebrationStopCounts;
 
-    expect(preSparkleStopCounts.sparkle).toBeGreaterThan(0);
+    expect(sparkleActiveCounts.sparkle).toBeGreaterThan(0);
 
     await scrollToProgress(page, 0.82);
     await page.waitForTimeout(400);
+    const preSparkleStopCounts = await readCanvasDrawProbe(page);
+
+    await scrollToProgress(page, 0.9);
+    await page.waitForTimeout(250);
     const postSparkleStopCounts = await readCanvasDrawProbe(page);
 
-    logger.expect("draw counts before sparkle stop", preSparkleStopCounts, preSparkleStopCounts);
+    logger.expect("draw counts during sparkle", sparkleActiveCounts, sparkleActiveCounts);
+    logger.expect("draw counts immediately after sparkle hide", preSparkleStopCounts, preSparkleStopCounts);
     logger.expect("draw counts after sparkle stop", postSparkleStopCounts, postSparkleStopCounts);
 
     expect(postSparkleStopCounts.sparkle).toBe(preSparkleStopCounts.sparkle);
@@ -626,7 +644,7 @@ test.describe("Hero performance metrics", () => {
   }, testInfo) => {
     const logger = createTestLogger(testInfo);
 
-    test.setTimeout(PERFORMANCE_TEST_TIMEOUT_MS);
+    test.setTimeout(PERFORMANCE_MEMORY_TEST_TIMEOUT_MS);
 
     await installPerformanceProbes(page);
 

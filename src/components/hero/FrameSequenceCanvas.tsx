@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import useFrameLoader from "../../hooks/useFrameLoader";
+import { HERO_RUNTIME_FRAME_EVENT } from "../../hooks/useHeroRuntime";
 import { PHASES } from "../../lib/hero/constants";
 import { buildDrawKey, getCelebrationFrameIndex, getSparkleFrameIndex } from "../../lib/hero/frame-utils";
 import { FRAME_MANIFEST } from "../../lib/hero/generated/frameManifest";
@@ -75,6 +76,14 @@ function readViewportSize(element: HTMLElement): ViewportSize {
   };
 }
 
+function normalizeScrollProgress(scrollProgress: number): number {
+  if (!Number.isFinite(scrollProgress)) {
+    return 0;
+  }
+
+  return Number(scrollProgress.toFixed(4));
+}
+
 export default function FrameSequenceCanvas({
   className,
   clip = "celebration",
@@ -95,21 +104,35 @@ export default function FrameSequenceCanvas({
   const resolvedPhaseStart = phaseStart ?? clipDefaults.phaseStart;
   const resolvedPhaseEnd = phaseEnd ?? clipDefaults.phaseEnd;
   const frameIndexResolver = getFrameIndex ?? clipDefaults.getFrameIndex;
+  const [runtimeScrollProgress, setRuntimeScrollProgress] = useState(() =>
+    normalizeScrollProgress(scrollProgress),
+  );
   const resolvedVisibility =
-    isVisible ?? (scrollProgress >= resolvedPhaseStart && scrollProgress < resolvedPhaseEnd);
+    isVisible ??
+    (runtimeScrollProgress >= resolvedPhaseStart && runtimeScrollProgress < resolvedPhaseEnd);
   const targetFrameIndex = useMemo(
-    () => frameIndexResolver(scrollProgress, totalFrames),
-    [frameIndexResolver, scrollProgress, totalFrames],
+    () => frameIndexResolver(runtimeScrollProgress, totalFrames),
+    [frameIndexResolver, runtimeScrollProgress, totalFrames],
   );
   const { activeTier, canvasScale, resolvedFrame } = useFrameLoader({
     clip,
     enabled: true,
     isVisible: resolvedVisibility,
-    scrollProgress,
+    scrollProgress: runtimeScrollProgress,
     targetFrameIndex,
     viewportHeight: viewportSize.height,
     viewportWidth: viewportSize.width,
   });
+
+  useEffect(() => {
+    const normalizedScrollProgress = normalizeScrollProgress(scrollProgress);
+
+    setRuntimeScrollProgress((currentScrollProgress) =>
+      currentScrollProgress === normalizedScrollProgress
+        ? currentScrollProgress
+        : normalizedScrollProgress,
+    );
+  }, [scrollProgress]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -146,6 +169,41 @@ export default function FrameSequenceCanvas({
     return () => {
       resizeObserver?.disconnect();
       window.removeEventListener("resize", syncViewportSize);
+    };
+  }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const heroRoot = canvas?.closest(".hero-root");
+
+    if (!(heroRoot instanceof HTMLElement)) {
+      return;
+    }
+
+    const handleRuntimeFrame = (event: Event) => {
+      const nextScrollProgress = (event as CustomEvent<{ scrollProgress?: number }>).detail
+        ?.scrollProgress;
+
+      if (
+        typeof nextScrollProgress !== "number" ||
+        !Number.isFinite(nextScrollProgress)
+      ) {
+        return;
+      }
+
+      const normalizedScrollProgress = normalizeScrollProgress(nextScrollProgress);
+
+      setRuntimeScrollProgress((currentScrollProgress) =>
+        currentScrollProgress === normalizedScrollProgress
+          ? currentScrollProgress
+          : normalizedScrollProgress,
+      );
+    };
+
+    heroRoot.addEventListener(HERO_RUNTIME_FRAME_EVENT, handleRuntimeFrame);
+
+    return () => {
+      heroRoot.removeEventListener(HERO_RUNTIME_FRAME_EVENT, handleRuntimeFrame);
     };
   }, []);
 
