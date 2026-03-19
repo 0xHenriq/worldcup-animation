@@ -282,6 +282,7 @@ export default function PortalLayer({
               loading="eager"
               sizes={`${Math.ceil(portalLayout.artboard.width)}px`}
               src="/hero/portal-cosmos.webp"
+              unoptimized
             />
             <div
               aria-hidden="true"
@@ -327,6 +328,7 @@ export default function PortalLayer({
                 loading="eager"
                 sizes={`${Math.ceil(portalLayout.leftArm.width)}px`}
                 src="/hero/arm-left.webp"
+                unoptimized
               />
             </div>
 
@@ -348,6 +350,7 @@ export default function PortalLayer({
                 loading="eager"
                 sizes={`${Math.ceil(portalLayout.rightArm.width)}px`}
                 src="/hero/arm-right.webp"
+                unoptimized
               />
             </div>
           </div>

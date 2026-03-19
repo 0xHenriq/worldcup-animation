@@ -30,9 +30,10 @@ export default function StaticHeroFallback({
         decoding="async"
         fetchPriority="high"
         height={HERO_IMAGE_HEIGHT}
+        loading="eager"
         priority
-        sizes="100vw"
         src="/hero/portal-composite.webp"
+        unoptimized
         width={HERO_IMAGE_WIDTH}
       />
 
@@ -42,8 +43,9 @@ export default function StaticHeroFallback({
         className="h-auto w-full object-cover object-center"
         decoding="async"
         height={HERO_IMAGE_HEIGHT}
-        sizes="100vw"
+        loading="lazy"
         src="/hero/stadium-poster.webp"
+        unoptimized
         width={HERO_IMAGE_WIDTH}
       />
 
@@ -55,8 +57,8 @@ export default function StaticHeroFallback({
             decoding="async"
             height={TROPHY_IMAGE_HEIGHT}
             loading="lazy"
-            sizes="(min-width: 640px) 22rem, 80vw"
             src="/hero/trophy.webp"
+            unoptimized
             width={TROPHY_IMAGE_WIDTH}
           />
         </div>

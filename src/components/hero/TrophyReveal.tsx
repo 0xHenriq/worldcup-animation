@@ -396,6 +396,7 @@ export default function TrophyReveal({
                 sizes={`(min-width: 1024px) ${TROPHY_WIDTH_DESKTOP_PX}px, 70vw`}
                 src="/hero/trophy.webp"
                 style={{ filter: `brightness(${TROPHY_DIM_BRIGHTNESS}) saturate(0.9)` }}
+                unoptimized
                 width={TROPHY_IMAGE_WIDTH}
               />
               <div
@@ -417,6 +418,7 @@ export default function TrophyReveal({
                   loading="lazy"
                   sizes={`(min-width: 1024px) ${TROPHY_WIDTH_DESKTOP_PX}px, 70vw`}
                   src="/hero/trophy.webp"
+                  unoptimized
                   width={TROPHY_IMAGE_WIDTH}
                 />
               </div>

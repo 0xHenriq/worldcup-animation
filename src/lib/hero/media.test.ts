@@ -1,6 +1,11 @@
-import { describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 
-import { computeCanvasScale, getActiveTierLongEdge, getDesiredTier } from "./media";
+import {
+  computeCanvasScale,
+  getActiveTierLongEdge,
+  getDesiredTier,
+  warmFrameSource,
+} from "./media";
 
 function expectDesiredTier(
   viewportWidth: number,
@@ -38,6 +43,25 @@ function expectCanvasScale(
     );
   }
 }
+
+const originalImage = globalThis.Image;
+const originalFetch = globalThis.fetch;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+
+  if (originalImage === undefined) {
+    Reflect.deleteProperty(globalThis, "Image");
+  } else {
+    globalThis.Image = originalImage;
+  }
+
+  if (originalFetch === undefined) {
+    Reflect.deleteProperty(globalThis, "fetch");
+  } else {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 describe("media tier selection", () => {
   it("selects the expected tier across the canonical viewport and DPR cases", () => {
@@ -108,5 +132,67 @@ describe("media canvas scale", () => {
         `Rounded backing-store dimensions: expected 443x960, got ${canvasWidth}x${canvasHeight}`,
       );
     }
+  });
+});
+
+describe("media source warming", () => {
+  it("warms frame URLs through Image without routing through fetch/blob", async () => {
+    const fetchSpy = vi.fn(async () => {
+      throw new Error("warmFrameSource should not call fetch when Image is available");
+    });
+
+    let warmedUrl = "";
+
+    class MockImage {
+      public decoding = "";
+      public onerror: null | (() => void) = null;
+      public onload: null | (() => void) = null;
+      private currentSrc = "";
+
+      public get src(): string {
+        return this.currentSrc;
+      }
+
+      public set src(value: string) {
+        this.currentSrc = value;
+
+        if (!value) {
+          return;
+        }
+
+        warmedUrl = value;
+        queueMicrotask(() => {
+          this.onload?.();
+        });
+      }
+    }
+
+    globalThis.fetch = fetchSpy as typeof fetch;
+    globalThis.Image = MockImage as unknown as typeof Image;
+
+    await warmFrameSource("/hero/frames/celebration/thumb/0001.webp");
+
+    if (warmedUrl !== "/hero/frames/celebration/thumb/0001.webp") {
+      throw new Error(`warmFrameSource warmed the wrong URL: ${warmedUrl}`);
+    }
+
+    if (fetchSpy.mock.calls.length > 0) {
+      throw new Error(`warmFrameSource should not fetch when Image exists, got ${fetchSpy.mock.calls.length} fetch call(s)`);
+    }
+  });
+
+  it("rejects immediately when the warm request is already aborted", async () => {
+    const abortController = new AbortController();
+    abortController.abort();
+
+    await warmFrameSource("/hero/frames/celebration/thumb/0001.webp", abortController.signal)
+      .then(() => {
+        throw new Error("warmFrameSource should reject aborted requests");
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof Error) || error.name !== "AbortError") {
+          throw error;
+        }
+      });
   });
 });

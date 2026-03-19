@@ -19,12 +19,15 @@ export default function BootStill({ className, style }: BootStillProps) {
       <Image
         alt=""
         aria-hidden="true"
-        className="object-cover object-center"
+        className="absolute inset-0 h-full w-full object-cover object-center"
         decoding="async"
-        fill
+        fetchPriority="high"
+        height={1080}
+        loading="eager"
         priority
-        sizes="100vw"
         src="/hero/portal-composite.webp"
+        unoptimized
+        width={1920}
       />
     </div>
   );

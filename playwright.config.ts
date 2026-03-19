@@ -14,6 +14,15 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
+        launchOptions: {
+          args: [
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-frame-rate-limit",
+            "--disable-renderer-backgrounding",
+            "--run-all-compositor-stages-before-draw",
+          ],
+        },
       },
     },
     {

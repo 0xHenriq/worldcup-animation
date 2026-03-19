@@ -86,6 +86,7 @@ export default function HeroSection() {
   const [boundaryFailed, setBoundaryFailed] = useState(false);
   const [bootStillDismissed, setBootStillDismissed] = useState(false);
   const [enhancedReadyTimedOut, setEnhancedReadyTimedOut] = useState(false);
+  const [hasRevealedEnhancedStage, setHasRevealedEnhancedStage] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
   const shouldDisableEnhancedRuntime = prefersReducedMotion || boundaryFailed || enhancedReadyTimedOut;
   const {
@@ -111,6 +112,8 @@ export default function HeroSection() {
     () => prefersReducedMotion || boundaryFailed || enhancedReadyTimedOut || runtimeFailed,
     [boundaryFailed, enhancedReadyTimedOut, prefersReducedMotion, runtimeFailed],
   );
+  const shouldRevealEnhancedStage =
+    enhancedReady && !shouldShowStaticBranch && hasRevealedEnhancedStage;
   const handleEnhancedStageError = useCallback(() => {
     setBoundaryFailed(true);
   }, []);
@@ -136,11 +139,22 @@ export default function HeroSection() {
   }, [enhancedReady]);
 
   useEffect(() => {
+    if (shouldShowStaticBranch || !enhancedReady) {
+      setHasRevealedEnhancedStage(false);
+      return;
+    }
+
+    if (scrollProgress > 0) {
+      setHasRevealedEnhancedStage(true);
+    }
+  }, [enhancedReady, scrollProgress, shouldShowStaticBranch]);
+
+  useEffect(() => {
     setBranchVisibility(heroRootRef.current, shouldShowStaticBranch);
   }, [heroRootRef, shouldShowStaticBranch]);
 
   useEffect(() => {
-    if (!enhancedReady || shouldShowStaticBranch) {
+    if (!shouldRevealEnhancedStage) {
       setBootStillDismissed(false);
       return;
     }
@@ -152,7 +166,7 @@ export default function HeroSection() {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [enhancedReady, shouldShowStaticBranch]);
+  }, [shouldRevealEnhancedStage]);
 
   return (
     <section
@@ -174,7 +188,7 @@ export default function HeroSection() {
             {!bootStillDismissed ? (
               <BootStill
                 className="transition-opacity duration-500 ease-out"
-                style={{ opacity: enhancedReady ? 0 : 1 }}
+                style={{ opacity: shouldRevealEnhancedStage ? 0 : 1 }}
               />
             ) : null}
             <EnhancedHeroErrorBoundary onError={handleEnhancedStageError}>
@@ -182,6 +196,7 @@ export default function HeroSection() {
                 enhancedReady={enhancedReady}
                 runtimeFailed={shouldShowStaticBranch}
                 scrollProgress={scrollProgress}
+                visible={shouldRevealEnhancedStage}
               />
             </EnhancedHeroErrorBoundary>
           </div>

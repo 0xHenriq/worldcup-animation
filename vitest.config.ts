@@ -15,7 +15,7 @@ export default defineConfig({
     globals: true,
     passWithNoTests: true,
     reporters: ["verbose"],
-    include: ["src/**/*.test.{ts,tsx}", "test/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "test/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
     coverage: {
       provider: "istanbul",
       reporter: ["text", "html"],

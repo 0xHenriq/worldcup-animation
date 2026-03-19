@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import useReducedMotion from "../../hooks/useReducedMotion";
 import { PHASES } from "../../lib/hero/constants";
 import { mapRangeClamped } from "../../lib/hero/easing";
+import { getCelebrationFrameIndex } from "../../lib/hero/frame-utils";
 import FilmGrain from "./FilmGrain";
 import FrameSequenceCanvas from "./FrameSequenceCanvas";
 import GoldenFlash from "./GoldenFlash";
@@ -21,6 +22,7 @@ type EnhancedHeroStageProps = {
   enhancedReady?: boolean;
   runtimeFailed?: boolean;
   scrollProgress?: number;
+  visible?: boolean;
 };
 
 export function getBackgroundBlackFadeOpacity(scrollProgress: number): number {
@@ -53,6 +55,34 @@ export function getVignetteOpacity(scrollProgress: number): number {
 
 export function shouldShowPosterLayer(scrollProgress: number): boolean {
   return scrollProgress < PHASES.POSTER_HIDE;
+}
+
+export function getCelebrationCanvasOpacity(scrollProgress: number): number {
+  if (
+    scrollProgress < PHASES.CELEBRATION_START ||
+    scrollProgress >= PHASES.CELEBRATION_FADE_END
+  ) {
+    return 0;
+  }
+
+  if (scrollProgress <= PHASES.CELEBRATION_FADE_START) {
+    return 1;
+  }
+
+  return mapRangeClamped(
+    scrollProgress,
+    PHASES.CELEBRATION_FADE_START,
+    PHASES.CELEBRATION_FADE_END,
+    1,
+    0,
+  );
+}
+
+export function shouldShowCelebrationCanvas(scrollProgress: number): boolean {
+  return (
+    scrollProgress >= PHASES.CELEBRATION_START &&
+    scrollProgress < PHASES.CELEBRATION_FADE_END
+  );
 }
 
 export function shouldShowAnticipationParticle(scrollProgress: number): boolean {
@@ -120,6 +150,7 @@ export default function EnhancedHeroStage({
   enhancedReady = false,
   runtimeFailed = false,
   scrollProgress = 0,
+  visible = false,
 }: EnhancedHeroStageProps) {
   if (shouldForceMountThrow()) {
     throw new Error("Forced EnhancedHeroStage mount failure for E2E fallback validation.");
@@ -142,11 +173,13 @@ export default function EnhancedHeroStage({
   }, [hasMounted, prefersReducedMotion, runtimeFailed]);
 
   const shouldRenderLayerStack = hasMounted && !prefersReducedMotion && !runtimeFailed;
-  const isVisible = shouldRenderLayerStack && enhancedReady;
+  const isVisible = shouldRenderLayerStack && visible;
   const backgroundBlackFadeOpacity = getBackgroundBlackFadeOpacity(scrollProgress);
   const blackoutOpacity = getBlackoutOpacity(scrollProgress);
   const vignetteOpacity = getVignetteOpacity(scrollProgress);
   const showPosterLayer = shouldShowPosterLayer(scrollProgress);
+  const celebrationCanvasOpacity = getCelebrationCanvasOpacity(scrollProgress);
+  const showCelebrationCanvas = shouldShowCelebrationCanvas(scrollProgress);
   const showAnticipationParticle = shouldShowAnticipationParticle(scrollProgress);
   const rootClassName = [
     "hero-enhanced-stage absolute inset-0 overflow-hidden transition-opacity duration-500 ease-out",
@@ -196,6 +229,7 @@ export default function EnhancedHeroStage({
                 loading="lazy"
                 sizes="100vw"
                 src="/hero/stadium-poster.webp"
+                unoptimized
               />
             </div>
           ) : null}
@@ -204,8 +238,19 @@ export default function EnhancedHeroStage({
             aria-hidden="true"
             className="absolute inset-0 z-[11] pointer-events-none"
             data-layer="celebration"
+            style={{
+              opacity: celebrationCanvasOpacity,
+              visibility: showCelebrationCanvas ? "visible" : "hidden",
+            }}
           >
-            <FrameSequenceCanvas />
+            <FrameSequenceCanvas
+              clip="celebration"
+              getFrameIndex={getCelebrationFrameIndex}
+              isVisible={isVisible && showCelebrationCanvas}
+              phaseEnd={PHASES.CELEBRATION_FADE_END}
+              phaseStart={PHASES.CELEBRATION_START}
+              scrollProgress={scrollProgress}
+            />
           </div>
 
           <div
@@ -213,7 +258,10 @@ export default function EnhancedHeroStage({
             className="absolute inset-0 z-[15] pointer-events-none"
             data-layer="sparkle"
           >
-            <SparkleOverlay />
+            <SparkleOverlay
+              isVisible={isVisible && scrollProgress >= PHASES.SPARKLE_PRESHOW && scrollProgress < PHASES.SPARKLE_HIDE}
+              scrollProgress={scrollProgress}
+            />
           </div>
 
           <div

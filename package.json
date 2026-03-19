@@ -34,6 +34,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitest/coverage-istanbul": "^4.1.0",
+    "cwebp-bin": "^8.0.0",
     "eslint": "9.39.4",
     "eslint-config-next": "15.5.13",
     "jsdom": "^29.0.0",

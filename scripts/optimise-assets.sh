@@ -4,6 +4,12 @@ set -euo pipefail
 TIER_NAMES=(thumb medium large)
 TIER_WIDTHS=(480 960 1920)
 TIER_QUALITIES=(70 76 80)
+CELEBRATION_TARGET_SIZES=(3072 6144 12288)
+CELEBRATION_STAGE_FILTERS=(
+  'scale=480:-2:flags=lanczos'
+  'scale=960:-2:flags=lanczos'
+  'scale=1920:-2:flags=lanczos,hqdn3d=12:8:14:10,gblur=sigma=2.4'
+)
 
 MODE=""
 KIND=""
@@ -11,6 +17,10 @@ CLIP=""
 OVERWRITE=0
 CRUSH_BLACKS=0
 LOSSLESS=0
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CWEBP_BIN=""
+CWEBP_INSTALL_SCRIPT="${PROJECT_ROOT}/node_modules/cwebp-bin/lib/install.js"
+CWEBP_CACHE_ROOT="${XDG_CACHE_HOME:-${HOME}/.cache}/worldcup-hero/optimise-assets"
 
 usage() {
   cat <<'USAGE'
@@ -62,6 +72,31 @@ have_command() {
 
 require_command() {
   have_command "$1" || fail "Required command not found: $1"
+}
+
+ensure_cwebp_bin() {
+  local local_bin="${PROJECT_ROOT}/node_modules/.bin/cwebp"
+
+  if have_command cwebp; then
+    CWEBP_BIN="$(command -v cwebp)"
+    return 0
+  fi
+
+  if [[ -x "$local_bin" ]] && "$local_bin" -version >/dev/null 2>&1; then
+    CWEBP_BIN="$local_bin"
+    return 0
+  fi
+
+  if [[ -f "$CWEBP_INSTALL_SCRIPT" ]]; then
+    require_command node
+    node "$CWEBP_INSTALL_SCRIPT" >/dev/null
+    if [[ -x "$local_bin" ]] && "$local_bin" -version >/dev/null 2>&1; then
+      CWEBP_BIN="$local_bin"
+      return 0
+    fi
+  fi
+
+  return 1
 }
 
 is_supported_image_kind() {
@@ -224,21 +259,61 @@ encode_with_cwebp() {
     fi
   fi
 
-  args=(-mt -m 6 -q "$quality" -resize "$resize_width" "$resize_height")
+  args=(-quiet -mt -m 6 -q "$quality" -resize "$resize_width" "$resize_height")
   if [[ "$LOSSLESS" -eq 1 ]]; then
-    args=(-mt -m 6 -lossless -q 100 -resize "$resize_width" "$resize_height")
+    args=(-quiet -mt -m 6 -lossless -q 100 -resize "$resize_width" "$resize_height")
   fi
   if [[ "$preserve_alpha" -eq 1 ]]; then
     args+=(-alpha_q 100)
   fi
 
-  if [[ -f "$output_path" && "$OVERWRITE" -eq 1 ]]; then
-    args+=(-o "$output_path")
-  else
-    args+=(-o "$output_path")
+  "$CWEBP_BIN" "${args[@]}" "$input_path" -o "$output_path"
+}
+
+encode_with_cwebp_target_size() {
+  local input_path="$1"
+  local output_path="$2"
+  local resize_width="$3"
+  local target_size="$4"
+  local args=(
+    -mt
+    -quiet
+    -m 6
+    -preset picture
+    -pass 10
+    -size "$target_size"
+    -sns 0
+    -f 100
+    -sharpness 0
+  )
+
+  if (( resize_width > 0 )); then
+    args+=(-resize "$resize_width" 0)
   fi
 
-  cwebp "${args[@]}" "$input_path"
+  "$CWEBP_BIN" "${args[@]}" "$input_path" -o "$output_path"
+}
+
+encode_with_cwebp_filter_cache() {
+  local input_path="$1"
+  local output_path="$2"
+  local filter_graph="$3"
+  local target_size="$4"
+  local stage_name="$5"
+  local stage_path="${CWEBP_CACHE_ROOT}/${stage_name}.png"
+
+  mkdir -p "$CWEBP_CACHE_ROOT"
+
+  ffmpeg \
+    -hide_banner \
+    -loglevel error \
+    -y \
+    -i "$input_path" \
+    -vf "$filter_graph" \
+    -frames:v 1 \
+    "$stage_path"
+
+  encode_with_cwebp_target_size "$stage_path" "$output_path" 0 "$target_size"
 }
 
 encode_image_variant() {
@@ -299,6 +374,7 @@ convert_frame_directory() {
   local output_root="$2"
   local source_files=()
   local tier_name tier_width tier_quality tier_index source_path base_name output_path
+  local target_size stage_filter
 
   [[ -d "$input_dir" ]] || fail "Input directory does not exist: $input_dir"
   is_supported_clip "$CLIP" || fail "Unsupported --clip value: $CLIP"
@@ -328,13 +404,33 @@ convert_frame_directory() {
     tier_name="${TIER_NAMES[$tier_index]}"
     tier_width="${TIER_WIDTHS[$tier_index]}"
     tier_quality="${TIER_QUALITIES[$tier_index]}"
+    target_size="${CELEBRATION_TARGET_SIZES[$tier_index]}"
+    stage_filter="${CELEBRATION_STAGE_FILTERS[$tier_index]}"
 
     printf '  tier %s -> width %s, quality %s\n' "$tier_name" "$tier_width" "$tier_quality"
+    if [[ "$CLIP" == 'celebration' && -n "$CWEBP_BIN" ]]; then
+      printf '    celebration target size: %s bytes\n' "$target_size"
+    fi
 
     for source_path in "${source_files[@]}"; do
       base_name="$(basename "${source_path%.*}")"
       output_path="${output_root}/${tier_name}/${base_name}.webp"
-      encode_image_variant "$source_path" "$output_path" width "$tier_width" "$tier_quality" 0
+      ensure_output_is_writable "$output_path"
+
+      if [[ "$CLIP" == 'celebration' && -n "$CWEBP_BIN" ]]; then
+        if [[ "$stage_filter" == "scale=${tier_width}:-2:flags=lanczos" ]]; then
+          encode_with_cwebp_target_size "$source_path" "$output_path" "$tier_width" "$target_size"
+        else
+          encode_with_cwebp_filter_cache \
+            "$source_path" \
+            "$output_path" \
+            "$stage_filter" \
+            "$target_size" \
+            "${CLIP}-${tier_name}"
+        fi
+      else
+        encode_image_variant "$source_path" "$output_path" width "$tier_width" "$tier_quality" 0
+      fi
     done
   done
 }
@@ -423,6 +519,7 @@ require_command find
 require_command grep
 require_command sort
 require_command ffprobe
+ensure_cwebp_bin || true
 
 (($# >= 1)) || {
   usage >&2

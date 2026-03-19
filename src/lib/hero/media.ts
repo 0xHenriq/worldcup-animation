@@ -63,6 +63,60 @@ function canCreateImageElement(): boolean {
   return typeof Image !== "undefined";
 }
 
+export async function warmFrameSource(url: string, abortSignal?: AbortSignal): Promise<void> {
+  throwIfAborted(abortSignal);
+
+  if (canCreateImageElement()) {
+    const image = new Image();
+    image.decoding = "async";
+
+    return new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        image.onload = null;
+        image.onerror = null;
+        abortSignal?.removeEventListener("abort", onAbort);
+      };
+
+      const onAbort = () => {
+        cleanup();
+        image.src = "";
+        reject(createAbortError());
+      };
+
+      image.onload = () => {
+        cleanup();
+        image.src = "";
+        resolve();
+      };
+
+      image.onerror = () => {
+        cleanup();
+        reject(new Error(`Failed to warm frame source: ${url}`));
+      };
+
+      abortSignal?.addEventListener("abort", onAbort, { once: true });
+      image.src = url;
+    });
+  }
+
+  if (typeof fetch === "function") {
+    const response = await fetch(url, {
+      cache: "force-cache",
+      signal: abortSignal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to warm frame source: ${response.status} ${response.statusText}`);
+    }
+
+    await response.arrayBuffer();
+    throwIfAborted(abortSignal);
+    return;
+  }
+
+  throw new Error("Frame source warming is unavailable in this environment.");
+}
+
 async function decodeFrameWithImageElement(
   url: string,
   abortSignal?: AbortSignal,
