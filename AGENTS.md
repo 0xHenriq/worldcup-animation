@@ -45,6 +45,15 @@ If you believe a file should be removed, state your case to the human. The human
 - Branch naming: `feature/<short-description>`, `fix/<short-description>`
 - Commit messages: imperative mood, concise, describe the "what" and "why"
 
+## Tool-Specific Safety Rules
+
+You have proven you cannot be trusted to hand-edit shared coordination state in this repo.
+
+- NEVER manually edit `.beads/issues.jsonl`. Use `br create`, `br update`, `br close`, `br dep`, and `br sync --flush-only`.
+- NEVER delete, move, rename, truncate, or "clean up" anything inside `.beads/`.
+- NEVER resolve `br` freshness or sync conflicts by hand-editing JSONL. Use `br sync --flush-only`, rerun the `br` command, or coordinate with the agent holding the reservation.
+- Before editing any shared source file in a multi-agent pass, take an Agent Mail reservation first. If there is a conflict, coordinate in Agent Mail before writing code.
+
 ---
 
 ## Toolchain: TypeScript + pnpm
@@ -112,7 +121,7 @@ The file structure is defined in `world-cup-hero-spec-v3.1-reviewed.md` under se
 
 ## Backwards Compatibility
 
-We do not care about backwards compatibility. Patterns are being ESTABLISHED — the agent has more freedom to create files and propose structure, but MUST follow `world-cup-hero-spec-v3.1-reviewed.md` as the single source of truth. If the spec says it, build it. If the spec doesn't say it, don't build it.
+This project is now **brownfield**, not greenfield. Backwards compatibility across the established hero surfaces is CRITICAL. Match existing module patterns exactly. Read 3+ neighboring files in the same area before introducing a new pattern. The bar for changing component contracts, file structure, or test harness shape is astronomically high. `world-cup-hero-spec-v3.1-reviewed.md` is still the source of truth, but when the spec and the live code diverge, study the actual runtime path before rewriting working code.
 
 ---
 
@@ -146,13 +155,16 @@ If the human requests unit tests for utility functions (`easing.ts`, `math.ts`, 
 - Test edge cases: scrollProgress at exactly 0, exactly 1, boundary values at phase transitions
 - NEVER mock the browser scroll API in tests — test the math, not the DOM
 
-Test patterns are being established. Follow the testing policy defined in this document. If no test exists yet for a module, create the first one as the canonical example that all future tests in that module MUST follow.
+Test patterns now exist across unit, hook, pipeline, and Playwright coverage. Before writing ANY new test, read 2+ existing tests in the same area and match the style, helpers, fixtures, and assertion patterns exactly. Do NOT invent a new test utility or harness shape unless the existing tests cannot express the case.
 
 ### Test Commands
 
 ```bash
-pnpm test             # Run test suite (if configured)
-pnpm test -- --watch  # Watch mode
+pnpm test             # Vitest suite
+pnpm test:watch       # Vitest watch mode
+pnpm test:coverage    # Vitest coverage report
+pnpm test:e2e         # Playwright suite
+pnpm exec playwright test test/e2e/<file>.spec.ts --project=chromium
 ```
 
 ### Test Categories
@@ -172,6 +184,8 @@ pnpm test -- --watch  # Watch mode
 ## World Cup 2026 Hero Section — This Project
 
 **This is the project you are working on.**
+
+**Project maturity: brownfield.**
 
 ### What It Does
 
@@ -404,9 +418,10 @@ Before ending any session:
 
 1. **Verify the build compiles:** `pnpm build` must succeed with zero errors
 2. **Verify lint passes:** `pnpm lint` must pass
-3. **Commit your work** with a descriptive message (if the human approves)
-4. **List any follow-up work** that you did not complete — be specific about what remains
-5. **State which scroll phases you touched** so the next agent knows what to verify visually
+3. **Verify typecheck passes:** `pnpm typecheck` must pass
+4. **Commit your work** with a descriptive message (if the human approves)
+5. **List any follow-up work** that you did not complete — be specific about what remains
+6. **State which scroll phases you touched** so the next agent knows what to verify visually
 
 ---
 
@@ -608,6 +623,32 @@ Until ready: BootStill visible, enhanced stack opacity 0, no decorative one-shot
 <!-- bv-agent-instructions-v2 -->
 
 ---
+
+## Agent Mail Coordination
+
+### What It Does
+
+Agent Mail is the coordination layer for this shared repo. Use it for inbox/outbox, file reservations, and explicit handoffs so two agents do not edit the same surface blindly.
+
+### When to Use
+
+- Before editing a shared source file or `.beads/issues.jsonl`
+- When another agent already holds a reservation on the file you need
+- When you complete a non-trivial change and need to tell the other agents what changed
+- When you are blocked for more than 5 minutes and need help or a handoff
+
+### Workflow
+
+1. Check your inbox before you start a new lane.
+2. Reserve the files you intend to edit before touching them.
+3. Announce the lane if the change is non-trivial or shared.
+4. Release reservations as soon as you are done.
+
+### Common Pitfalls
+
+- Do NOT assume silence means the file is free. Check reservations first.
+- Do NOT hold reservations on files you are no longer editing.
+- Do NOT edit `.beads/issues.jsonl` while another agent holds the reservation.
 
 ## Beads Workflow Integration
 
